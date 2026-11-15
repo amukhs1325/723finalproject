@@ -1,0 +1,5 @@
+numpy
+pandas
+matplotlib
+rapidfuzz  # optional: makes novelty about 100x faster
+pytest     # optional: for running tests

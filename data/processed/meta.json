@@ -1,0 +1,152 @@
+{
+  "source": "DnD_characters_May2018.txt",
+  "unit": "given",
+  "seed": 723,
+  "raw_entries": 20887,
+  "kept_entries": 20785,
+  "dropped_entries": 102,
+  "unique_names": 15483,
+  "split_sizes": {
+    "train": 12386,
+    "val": 1548,
+    "test": 1549
+  },
+  "vocab": [
+    "'",
+    "-",
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z"
+  ],
+  "eos": "\n",
+  "length": {
+    "min": 2,
+    "max": 15,
+    "mean": 6.29
+  },
+  "most_common": [
+    [
+      "dave",
+      32
+    ],
+    [
+      "rowan",
+      30
+    ],
+    [
+      "jack",
+      26
+    ],
+    [
+      "magnus",
+      22
+    ],
+    [
+      "john",
+      20
+    ],
+    [
+      "felix",
+      17
+    ],
+    [
+      "eric",
+      17
+    ],
+    [
+      "simon",
+      16
+    ],
+    [
+      "ander",
+      16
+    ],
+    [
+      "milo",
+      15
+    ],
+    [
+      "ragnar",
+      15
+    ],
+    [
+      "cora",
+      15
+    ],
+    [
+      "bob",
+      15
+    ],
+    [
+      "flint",
+      15
+    ],
+    [
+      "william",
+      14
+    ],
+    [
+      "mara",
+      14
+    ],
+    [
+      "gimble",
+      14
+    ],
+    [
+      "darius",
+      14
+    ],
+    [
+      "aria",
+      14
+    ],
+    [
+      "james",
+      14
+    ],
+    [
+      "hans",
+      14
+    ],
+    [
+      "mag",
+      14
+    ],
+    [
+      "lily",
+      13
+    ],
+    [
+      "varis",
+      13
+    ],
+    [
+      "theren",
+      13
+    ]
+  ]
+}

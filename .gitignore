@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+outputs/human_check/rater_*.csv
+# Answer key for the human check (which set each name came from). Keep it off the repo
+# until everyone has rated, or the ratings are not blind.
+outputs/human_check/key.csv
+outputs/human_check/analysis.csv

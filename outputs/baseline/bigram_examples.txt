@@ -1,0 +1,13 @@
+temperature=0.5: ma, arorinir, s, r, s, da, an, maysan, g, releron, delaran, sh
+temperature=0.7: ma, arrinaso, t, r'reil, borilythen, bopeloten, maloli, smar, falla, h, an, okra
+temperature=0.8: n, a, sthinss, t, rarhal, borilyvinel, rgamoten, malpan, solo, falla, h, an
+temperature=0.9: n, a, sthinto, t, rashal, borikywinel, rhaltten, maltan, spas, galok, h, an
+temperature=1.0: n, a, sthlitr, t, rashal, borikyxinge, rieltulifigetan, sras, galoh, h, blbogul, nthunanzzergirerlvar
+temperature=1.1: n, a, stirius, t, rashal, borikyxinik, rielutenanakran, ss, t, galog, ican, pave
+temperature=1.2: n, a, stirius, t, rathal, borikyxinik, rielutenanaks, n, trat, galog, icanarawe, nthvelkyverimomorucl
+temperature=1.5: oh, asunngus, t, ratiel, borlezzorndarieluuki, gmdeuen, trau'galra, icanaraxa, nulylflzzhongrgorvar, wy, tywaytshasuglgu, rl
+top_p=0.5: ma, arinaner, s, s, th, g, anan, thanal, s, darilelelar, mariar, d
+top_p=0.7: ma, arorinne, s, r, sele, arin, torin, bon, kis, lan, es, l
+top_p=0.8: ma, arriooto, s, n, seel, blin, trinel, naimoten, laloli, solo, e, gol
+top_p=0.9: ma, arthimus, s, pariel, borikytinel, phaltten, ldes, m, spas, falok, ga, lan
+top_p=0.95: ma, arthketo, s, pashal, borikyvinge, phaltten, maltan, spas, faloi, h, an, n
