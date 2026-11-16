@@ -1,5 +1,6 @@
 numpy
 pandas
 matplotlib
+sentence-transformers  # meaning view of novelty (pulls in torch)
 rapidfuzz  # optional: makes novelty about 100x faster
 pytest     # optional: for running tests
