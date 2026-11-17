@@ -11,7 +11,8 @@ peaks with where validation loss bottoms out.
 is at v2 (novelty views, length gate, cached LLM judge) and **not frozen yet**: it freezes once
 the three of us have filled the rating sheets in `outputs/human_study/`. Design and evidence
 are in `docs/evaluation_plan.md`. The data splits did not change, so models can be trained now
-and scored after the freeze. Next: the shared training loop and the LSTM and transformer runs.
+and scored after the freeze. Next: the shared interface and the LSTM and transformer runs.
+Who does what, and by when, is in `docs/work_split.md`.
 
 This repo prepares the fantasy-name data and scores generated names for creativity.
 Pretraining and post-training code plug into two calls:
@@ -202,5 +203,5 @@ cvl/scorer.py      score, score_table
 cvl/plots.py       Fig. 1 and Fig. 2 helpers
 scripts/           prepare_data, calibrate, sanity_check, human_tasks, eval_checkpoint
 tests/             unit tests
-docs/              evaluation_plan.md
+docs/              evaluation_plan.md (scorer design), work_split.md (who does what, dates)
 ```
