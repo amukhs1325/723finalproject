@@ -50,9 +50,23 @@ The report asks which files each of us wrote, so keep ownership as listed.
 **Everyone**
 
 * Rate both sheets in `outputs/human_study/` (about 20 minutes).
-* Write your own report sections in your own words. AI help is allowed for code, experiments
-  and figures and has to be listed in the AI Disclosure section. It is not allowed for the
-  report text.
+* Write your own report sections (see below).
+
+## How the report gets written
+
+The course does not allow AI-generated or AI-edited text in the report, checks it with Pangram,
+and will not grade a report that does not read as human-written. So:
+
+1. For each section we start from a bullet outline generated with Claude from the project
+   context: the facts, numbers, figures and tables the section has to cover, and in what order.
+   The bullets are fragments, not sentences.
+2. The owner of the section writes it from that outline in their own words. Every sentence in
+   Overleaf is typed by one of us.
+3. Outline bullets are never pasted into the document, and nothing is sent back to an AI to be
+   reworded. Feedback on a draft (what is unclear, missing or wrong) is fine; the rewrite is ours.
+4. Lists that appear in the report itself, such as "proposed vs. accomplished", are report text
+   and are ours to write too.
+5. AI use for code, experiments, figures and outlines goes in the AI Disclosure section.
 
 ## The interface to agree on (G1)
 
