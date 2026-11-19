@@ -21,7 +21,7 @@ The report asks which files each of us wrote, so keep ownership as listed.
 
 | | Task | Needs |
 | --- | --- | --- |
-| A1 | Scorer v2, rating sheets, checkpoint evaluation | done in this PR |
+| A1 | Scorer v2, rating app and sheets, checkpoint evaluation | done in this PR |
 | A2 | Freeze the scorer: calibrate the judge on our ratings, run the acceptance test, regenerate sanity check and baseline | ratings from all three of us |
 | A3 | Figure script that redraws everything from `results/checkpoints.csv`: loss and creativity vs. step, tier shares vs. step, by size, by architecture | nothing; built on the n-gram rows first |
 | A4 | Follow-up ratings: 60 names from an early, a lowest-loss and an overfit checkpoint, to check the judge transfers to real model output | first checkpoints |
@@ -49,7 +49,7 @@ The report asks which files each of us wrote, so keep ownership as listed.
 
 **Everyone**
 
-* Rate both sheets in `outputs/human_study/` (about 20 minutes).
+* Do the rating app (about 15 minutes): see `outputs/human_study/INSTRUCTIONS.md`.
 * Write your own report sections (see below).
 
 ## How the report gets written

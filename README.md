@@ -9,7 +9,7 @@ peaks with where validation loss bottoms out.
 
 **Status:** data, shared sampling code and the bigram baseline are done. The creativity scorer
 is at v2 (novelty views, length gate, cached LLM judge) and **not frozen yet**: it freezes once
-the three of us have filled the rating sheets in `outputs/human_study/`. Design and evidence
+the three of us have done the 15-minute rating app (see Human study below). Design and evidence
 are in `docs/evaluation_plan.md`. The data splits did not change, so models can be trained now
 and scored after the freeze. Next: the shared interface and the LSTM and transformer runs.
 Who does what, and by when, is in `docs/work_split.md`.
