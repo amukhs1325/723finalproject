@@ -68,7 +68,7 @@ each. Results in `outputs/baseline/`.
 ```bash
 pip install -r requirements.txt   # numpy, pandas, matplotlib, sentence-transformers; rapidfuzz optional
 python scripts/prepare_data.py    # data/processed/{train,val,test}.txt + meta.json
-python -m pytest tests            # 20 tests
+python -m pytest tests            # 22 tests
 ```
 
 `scorer_config.json` is already committed (version 2). **Do not rerun `scripts/calibrate.py`**:
@@ -179,17 +179,35 @@ training step. It is not a result.
 
 ## Human study
 
+Plausibility is the only part of the score that is a judgment call, so it is grounded on our own
+ratings. Each of us rates the same items, blind, in about 15 minutes.
+
+**To rate:** follow `outputs/human_study/INSTRUCTIONS.md`. The short version: open the rating app
+(hosted link in that file, or `outputs/human_study/rating_app.html` in any browser), tap through
+it, and send Andre the block of text it shows at the end.
+
+| Part | Items | Question | Used for |
+| --- | --- | --- | --- |
+| 1 | 120 names, rated 1 to 5 | could this be a fantasy character's given name? | half set the judge's cut, half test the judge |
+| 2 | 60 pairs, same or different | is the first name just a variant of the second? | checking that the novelty tiers flag what a person would call the same name |
+
+What the app does that a spreadsheet does not: each rater gets their own random order, ten names
+are shown a second time at least 40 items later (to measure how consistent each rater is with
+themselves), and the time spent on each item is recorded. The app holds only ids and names. Where
+a name came from is in the key files, which are not in the repo.
+
+**To analyze** (Andre):
+
 ```bash
-python scripts/human_tasks.py make       # already run: sheets are in outputs/human_study/
-# each of us follows outputs/human_study/INSTRUCTIONS.md (about 20 minutes)
+python scripts/human_tasks.py import ratings_from_vraj.txt      # once per rater
 python scripts/human_tasks.py analyze --fill-judge --freeze
 ```
 
-Sheet A (120 names) grounds the judge: half the names set its cut, the other half test it.
-Sheet B (60 pairs) checks that the novelty tiers flag what a person would call the same name.
-The key files are not in the repo, so ratings stay blind. `make` is deterministic, so anyone can
-regenerate them after all three of us have rated. `--fill-judge` sends the 120 Sheet A names to
-the judge (120 small API calls, needs `OPENAI_API_KEY`).
+`import` turns a pasted result into `rater_<name>_A.csv`, `_B.csv` and `_repeats.csv`, and refuses
+an incomplete one. `analyze` reports agreement between raters, picks the judge's cut on the
+calibration half, runs the acceptance test on the test half, and with `--freeze` writes the result
+into `scorer_config.json`. `--fill-judge` sends the 120 Part 1 names to the judge (120 small API
+calls, needs `OPENAI_API_KEY`). `make` regenerates the sheets and keys deterministically.
 
 ## Layout
 

@@ -122,3 +122,48 @@ def test_krippendorff_matches_published_example():
 def test_cohen_kappa():
     assert cohen_kappa([1, 1, 0, 0], [1, 1, 0, 0]) == 1.0
     assert abs(cohen_kappa([1, 1, 0, 0], [1, 0, 1, 0])) < 1e-12
+
+
+def test_rating_app_shows_exactly_the_sheet_items():
+    """The app and the CSV sheets must be the same study, and the app must stay blind."""
+    import csv
+    import json
+    import re
+    root = Path(__file__).resolve().parent.parent / "outputs" / "human_study"
+    html = (root / "rating_app.html").read_text(encoding="utf-8")
+    data = json.loads(re.search(r"const DATA = (\{.*?\});", html, re.S).group(1))
+    with open(root / "sheet_A.csv", newline="", encoding="utf-8") as f:
+        sheet_a = [[int(r["id"]), r["name"]] for r in csv.DictReader(f)]
+    with open(root / "sheet_B.csv", newline="", encoding="utf-8") as f:
+        sheet_b = [[int(r["id"]), r["left"], r["right"]] for r in csv.DictReader(f)]
+    assert data["A"] == sheet_a and data["B"] == sheet_b
+    assert len(data["repeats"]) == 10 and set(data["repeats"]) <= {i for i, _ in sheet_a}
+    for leak in ("calibration", "char-RNN", "real held-out", "stratum", "near_copy"):
+        assert leak not in html
+
+
+def test_import_app_result(tmp_path, monkeypatch):
+    import shutil
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    import human_tasks as ht
+    import pandas as pd
+    for name in ("sheet_A.csv", "sheet_B.csv"):
+        shutil.copy(ht.OUT / name, tmp_path / name)
+    monkeypatch.setattr(ht, "OUT", tmp_path)
+    a = pd.read_csv(tmp_path / "sheet_A.csv")["id"].tolist()
+    b = pd.read_csv(tmp_path / "sheet_B.csv")["id"].tolist()
+    lines = ["CVL-RATINGS v1", "rater: tester"] + [f"A,{i},{1 + i % 5},2000" for i in a] \
+        + [f"A2,{a[0]},3,1500"] + [f"B,{i},{i % 2},1200" for i in b] + ["END"]
+    f = tmp_path / "result.txt"
+    f.write_text("\n".join(lines))
+    ht.import_app(str(f))
+    got = pd.read_csv(tmp_path / "rater_tester_A.csv")
+    assert got["rating"].tolist() == [1 + i % 5 for i in a] and list(got.columns)[:3] == ["id", "name", "rating"]
+    assert pd.read_csv(tmp_path / "rater_tester_B.csv")["same"].tolist() == [i % 2 for i in b]
+    assert len(pd.read_csv(tmp_path / "rater_tester_repeats.csv")) == 1
+    f.write_text("\n".join(lines[:40] + ["END"]))          # someone stopped early
+    try:
+        ht.import_app(str(f))
+        raise AssertionError("expected an incomplete result to be refused")
+    except SystemExit as e:
+        assert "incomplete" in str(e)

@@ -111,11 +111,18 @@ Split 60 calibration / 60 test by a fixed seed.
 from each view's flagged set, from just under each threshold, and from clearly distant pairs.
 Answer yes or no: *is the left name just a respelling or trivial variant of the right?*
 
+How the ratings are collected: a small rating app (`outputs/human_study/rating_app.html`, also
+hosted) shows one item at a time. Each rater gets their own random order, so no two people see
+the names in the same sequence. Ten names are shown twice, at least 40 items apart, which gives
+a test-retest number per rater. Time per item is recorded so a rushed pass is visible. The app
+ends with a block of text that `scripts/human_tasks.py import` turns into rater files.
+
 What gets reported:
 
 | Number | From | Purpose |
 | --- | --- | --- |
 | Krippendorff's α (ordinal for A, nominal for B) | all three raters | the inter-annotator agreement the report template requires |
+| Test-retest on the ten repeated names | each rater | how consistent each of us is with ourselves, the ceiling for any agreement number |
 | Spearman of judge vs. mean human rating, test half | Task A | is the judge grounded |
 | Same for the 3-gram percentile | Task A | does the judge beat the cheap signal |
 | Accuracy and Cohen's κ of `plausible` vs. human majority, test half | Task A | quality of the final yes/no |

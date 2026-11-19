@@ -3,8 +3,11 @@
 Make the two rating sheets (deterministic, needs no trained model):
     python scripts/human_tasks.py make
 
-Each of us fills both sheets without looking at the key files, and saves them next
-to the sheets as rater_<name>_A.csv and rater_<name>_B.csv. Then:
+Each of us rates in the rating app (same items as the sheets, one at a time, in a random
+order per rater), then sends the block of text it shows at the end. Turn that into files:
+    python scripts/human_tasks.py import ratings_from_vraj.txt     # or paste on stdin
+Filling the CSV sheets by hand still works: save them next to the sheets as
+rater_<name>_A.csv and rater_<name>_B.csv, without looking at the key files. Then:
     python scripts/human_tasks.py analyze                 # agreement, judge vs. humans
     python scripts/human_tasks.py analyze --fill-judge    # also judge any Task A names not cached
     python scripts/human_tasks.py analyze --freeze        # write judge_cut into scorer_config.json
@@ -41,6 +44,7 @@ QUOTA_B = {"near_copy": 10, "respelling": 12, "derived": 12, "under spelling": 8
            "under meaning": 8, "distant": 10}
 QUESTION_B = ("Is the LEFT name basically the RIGHT name: a respelling, or the same name with "
               "a small addition or change? 1 = yes, 0 = no.")
+APP_URL = "https://claude.ai/artifact/YBYTUJXiLFVGUt4MgVFXDQ"
 
 
 def one_edit(name: str, rng: random.Random) -> str:
@@ -134,31 +138,76 @@ def make() -> None:
     key_b[["id", "left", "right"]].assign(same="").to_csv(OUT / "sheet_B.csv", index=False)
     (OUT / "INSTRUCTIONS.md").write_text(f"""# Rating instructions
 
-About 20 minutes. Please do both sheets alone, in one sitting, without looking up any name
-and without opening the `key_*.csv` files (they say where each name came from).
+About 15 minutes. Do it alone, in one sitting, without looking up any name, and without
+talking about the names with the others until all three of us are done. Do not open the
+`key_*.csv` files (they say where each name came from).
 
-## Sheet A: `sheet_A.csv` ({len(key_a)} names)
+## The easy way: the rating app
 
-Fill the `rating` column with a number from 1 to 5.
+Open **{APP_URL}** on your phone or laptop. If that link does not open for you, download
+`rating_app.html` from this folder and open it in any browser. It is the same page.
 
-{RUBRIC}
+1. Type your first name and press Start.
+2. Part 1: {len(key_a)} names, one at a time. Tap 1 to 5 (or press the number keys). Ten of them
+   come back a second time later on. That is on purpose, just answer again.
+3. Part 2: {len(key_b)} pairs. Tap Same name or Different name (or press Y / N).
+4. On the last screen press **Copy my ratings** and send that whole block of text to Andre.
 
-## Sheet B: `sheet_B.csv` ({len(key_b)} pairs)
+You can go back to change an answer, and you can close the tab and resume later on the same
+device. Nothing is sent anywhere automatically.
 
-Fill the `same` column with 1 or 0.
+### What you are answering
 
-{QUESTION_B}
+**Part 1.** {RUBRIC}
 
-Examples: `jonn` / `jon` is 1. `kaius` / `caius` is 1. `torvus` / `corvus` is 0, a
-different first letter makes a different name.
+**Part 2.** {QUESTION_B.replace("LEFT", "first").replace("RIGHT", "second").replace(" 1 = yes, 0 = no.", "")}
 
-## Saving
+Examples: `jonn` / `jon` is the same name. `kaius` / `caius` is the same name. `torvus` /
+`corvus` is different, a different first letter makes a different name.
 
-Save your copies in this folder as `rater_<yourname>_A.csv` and `rater_<yourname>_B.csv`.
-Keep the `id` column as it is.
+## The manual way: CSV sheets
+
+Only if the app does not work for you. Fill the `rating` column of `sheet_A.csv` with 1 to 5
+and the `same` column of `sheet_B.csv` with 1 or 0, using the two questions above. Save your
+copies in this folder as `rater_<yourname>_A.csv` and `rater_<yourname>_B.csv`, and keep the
+`id` column as it is.
+
+## For Andre: turning app results into files
+
+Save each person's pasted text to a file and run
+`python scripts/human_tasks.py import <file>`. It writes `rater_<name>_A.csv`,
+`rater_<name>_B.csv` and `rater_<name>_repeats.csv` here and refuses incomplete results.
 """, encoding="utf-8")
     print(f"wrote {OUT}/sheet_A.csv ({len(key_a)} names), sheet_B.csv ({len(key_b)} pairs), "
           "INSTRUCTIONS.md and the hidden key files")
+
+
+def import_app(path: str | None) -> None:
+    """Turn the rating app's result text into rater_<name>_A.csv / _B.csv / _repeats.csv."""
+    text = Path(path).read_text(encoding="utf-8") if path else sys.stdin.read()
+    lines = [x.strip() for x in text.strip().splitlines() if x.strip()]
+    if not lines or lines[0] != "CVL-RATINGS v1" or lines[-1] != "END":
+        sys.exit("this is not a complete result: it must start with 'CVL-RATINGS v1' and end with 'END'")
+    rater = lines[1].split(":", 1)[1].strip()
+    rows = {"A": {}, "A2": {}, "B": {}}
+    for line in lines[2:-1]:
+        kind, i, v, ms = line.split(",")
+        rows[kind][int(i)] = (int(v), int(ms))
+    sa, sb = pd.read_csv(OUT / "sheet_A.csv"), pd.read_csv(OUT / "sheet_B.csv")
+    missing = [f"A:{i}" for i in sa["id"] if i not in rows["A"]] + [f"B:{i}" for i in sb["id"] if i not in rows["B"]]
+    if missing:
+        sys.exit(f"incomplete: {len(missing)} items unanswered (e.g. {missing[:5]}); ask {rater} to finish and resend")
+    if any(not 1 <= v <= 5 for v, _ in rows["A"].values()) or any(v not in (0, 1) for v, _ in rows["B"].values()):
+        sys.exit("a rating is out of range")
+    sa.assign(rating=[rows["A"][i][0] for i in sa["id"]], ms=[rows["A"][i][1] for i in sa["id"]]) \
+        .to_csv(OUT / f"rater_{rater}_A.csv", index=False)
+    sb.assign(same=[rows["B"][i][0] for i in sb["id"]], ms=[rows["B"][i][1] for i in sb["id"]]) \
+        .to_csv(OUT / f"rater_{rater}_B.csv", index=False)
+    pd.DataFrame([{"id": i, "first": rows["A"][i][0], "second": v} for i, (v, _) in sorted(rows["A2"].items())]) \
+        .to_csv(OUT / f"rater_{rater}_repeats.csv", index=False)
+    med_a = sa["id"].map(lambda i: rows["A"][i][1]).median() / 1000
+    print(f"imported {rater}: {len(sa)} names, {len(sb)} pairs, {len(rows['A2'])} repeats; "
+          f"median {med_a:.1f} s per name")
 
 
 def _raters(task: str, column: str) -> pd.DataFrame:
@@ -189,6 +238,11 @@ def analyze(fill_judge: bool, freeze: bool) -> None:
     human_pair = float(pd.Series([pairwise.iloc[i, j] for i in range(len(pairwise))
                                   for j in range(i)]).mean()) if ra.shape[1] > 1 else float("nan")
     print(f"  Krippendorff alpha (ordinal): {alpha_a:.3f}   mean rater-to-rater Spearman: {human_pair:.3f}")
+    for f in sorted(OUT.glob("rater_*_repeats.csv")):       # same name shown twice, 40+ items apart
+        r = pd.read_csv(f)
+        if len(r):
+            print(f"  {f.stem[6:-8]} rated repeated names the same {(r['first'] == r['second']).mean():.0%} of the time, "
+                  f"within one point {((r['first'] - r['second']).abs() <= 1).mean():.0%}")
     df = key.join(ra.mean(axis=1).rename("human"))
     df["human_plausible"] = df["human"] >= 3
 
@@ -256,8 +310,15 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("make")
+    imp = sub.add_parser("import", help="read the rating app's result text (file, or stdin)")
+    imp.add_argument("file", nargs="?")
     a = sub.add_parser("analyze")
     a.add_argument("--fill-judge", action="store_true")
     a.add_argument("--freeze", action="store_true")
     args = ap.parse_args()
-    make() if args.cmd == "make" else analyze(args.fill_judge, args.freeze)
+    if args.cmd == "make":
+        make()
+    elif args.cmd == "import":
+        import_app(args.file)
+    else:
+        analyze(args.fill_judge, args.freeze)
