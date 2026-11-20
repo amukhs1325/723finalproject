@@ -152,7 +152,7 @@ function intro(){
         el("li", {text: "Do it alone, in one sitting."}),
         el("li", {text: "Go with your first reaction. Do not look any name up."}),
         el("li", {text: "Do not discuss the names with the others until all three of us are done."}),
-        el("li", {text: "At the end you get a block of text. Copy it and send it to Andre."})])]),
+        el("li", {text: "At the end you get a block of text. Send it to Andre."})])]),
     saved ? el("div", {class: "panel"}, [el("h2", {text: "Pick up where you left off"}),
       el("p", {class: "muted", text: saved.rater + ", item " + Math.min(saved.pos + 1, saved.seq.length) + " of " + saved.seq.length + "."}),
       el("button", {class: "primary", id: "resume", text: "Resume", on: {click: () => { S = saved; render(); }}})]) : null,
@@ -213,12 +213,18 @@ function done(){
   const copy = el("button", {class: "primary", id: "copy", text: "Copy my ratings", on: {click: () => {
     const fallback = () => { ta.focus(); ta.select(); status.textContent = "Selected. Copy it with your keyboard or the share menu."; };
     try { navigator.clipboard.writeText(ta.value).then(() => { status.textContent = "Copied."; }, fallback); } catch (e) { fallback(); } }}});
+  const canShare = typeof navigator.share === "function";
+  const send = canShare ? el("button", {class: "primary", id: "send", text: "Send my ratings", on: {click: () => {
+    navigator.share({title: "Name ratings from " + S.rater, text: ta.value}).then(
+      () => { status.textContent = "Shared."; },
+      () => { status.textContent = "Not sent. Try again, or use Copy."; }); }}}) : null;
+  if (canShare) copy.className = "";
   const reset = el("button", {class: "quiet", id: "reset", text: "Start over", on: {click: () => {
     if (!armedReset){ armedReset = true; reset.textContent = "Tap again to erase my ratings"; return; }
     armedReset = false; wipe(); render(); }}});
   app.append(el("div", {class: "panel"}, [el("div", {class: "eyebrow", text: "Done"}), el("h1", {text: "Thank you, " + S.rater}),
-    el("p", {text: "Copy the text below and send all of it to Andre, by message or email. Nothing was sent anywhere automatically."}),
-    ta, el("div", {class: "row"}, [copy, status]),
+    el("p", {text: "Send all of the text below to Andre, by message or email. Nothing has been sent yet."}),
+    ta, el("div", {class: "row"}, [send, copy, status]),
     el("div", {class: "row"}, [el("button", {class: "quiet", text: "← Review my last answer", on: {click: back}}), reset])]));
 }
 document.addEventListener("keydown", e => {

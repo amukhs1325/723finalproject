@@ -182,9 +182,10 @@ training step. It is not a result.
 Plausibility is the only part of the score that is a judgment call, so it is grounded on our own
 ratings. Each of us rates the same items, blind, in about 15 minutes.
 
-**To rate:** follow `outputs/human_study/INSTRUCTIONS.md`. The short version: open the rating app
-(hosted link in that file, or `outputs/human_study/rating_app.html` in any browser), tap through
-it, and send Andre the block of text it shows at the end.
+**To rate:** open https://bloohunnits.github.io/723finalproject/ on your phone or laptop, tap
+through it, and send Andre the block of text it shows at the end. It is an ordinary web page: no
+account, no install. The page is `outputs/human_study/rating_app.html`, served from the
+`gh-pages` branch of Andre's fork. Full instructions are in `outputs/human_study/INSTRUCTIONS.md`.
 
 | Part | Items | Question | Used for |
 | --- | --- | --- | --- |

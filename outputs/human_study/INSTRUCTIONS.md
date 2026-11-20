@@ -6,14 +6,15 @@ talking about the names with the others until all three of us are done. Do not o
 
 ## The easy way: the rating app
 
-Open **https://claude.ai/artifact/YBYTUJXiLFVGUt4MgVFXDQ** on your phone or laptop. If that link does not open for you, download
-`rating_app.html` from this folder and open it in any browser. It is the same page.
+Open **https://bloohunnits.github.io/723finalproject/** on your phone or laptop. It is an ordinary web page: no account, no
+install. (The same page is `rating_app.html` in this folder, if you would rather open the file.)
 
 1. Type your first name and press Start.
 2. Part 1: 120 names, one at a time. Tap 1 to 5 (or press the number keys). Ten of them
    come back a second time later on. That is on purpose, just answer again.
 3. Part 2: 60 pairs. Tap Same name or Different name (or press Y / N).
-4. On the last screen press **Copy my ratings** and send that whole block of text to Andre.
+4. On the last screen press **Send my ratings** (phones) or **Copy my ratings**, and send that
+   whole block of text to Andre.
 
 You can go back to change an answer, and you can close the tab and resume later on the same
 device. Nothing is sent anywhere automatically.
