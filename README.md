@@ -8,9 +8,10 @@ creativity (names that are new and still sound like real names), and compare whe
 peaks with where validation loss bottoms out.
 
 **Status:** data, shared sampling code and the bigram baseline are done. The creativity scorer
-is at v2 (novelty views, length gate, cached LLM judge) and **not frozen yet**: it freezes once
-the three of us have done the 15-minute rating app (see Human study below). Design and evidence
-are in `docs/evaluation_plan.md`. The data splits did not change, so models can be trained now
+is at v2 (novelty views, length gate, cached LLM judge with a distilled local student) and
+**not frozen yet**: it freezes once the three of us have done the 15-minute rating app (see
+Human study below). Design and evidence are in `docs/evaluation_plan.md` and
+`docs/judge_and_student.md`. The data splits did not change, so models can be trained now
 and scored after the freeze. Next: the shared interface and the LSTM and transformer runs.
 Who does what, and by when, is in `docs/work_split.md`.
 
@@ -35,7 +36,12 @@ Scoring a whole run (one row per checkpoint in `results/checkpoints.csv`):
 
 ```bash
 python scripts/eval_checkpoint.py checkpoints/<run dir>/ [--fill-judge]
+python scripts/make_figures.py                      # one three-panel figure per run
 ```
+
+`eval_checkpoint.py` opens any checkpoint that `cvl.sampling.load_checkpoint` knows. A model needs
+`symbols`, `next_probs(context)` and, to have its loss and step recorded, `meta = {"step": ...,
+"val_loss": ...}`. `cvl/reference_lm.py` is a worked example of that interface.
 
 Samples can include a trailing newline or `$` end marker; the scorer strips them.
 
@@ -68,7 +74,7 @@ each. Results in `outputs/baseline/`.
 ```bash
 pip install -r requirements.txt   # numpy, pandas, matplotlib, sentence-transformers; rapidfuzz optional
 python scripts/prepare_data.py    # data/processed/{train,val,test}.txt + meta.json
-python -m pytest tests            # 22 tests
+python -m pytest tests            # 29 tests
 ```
 
 `scorer_config.json` is already committed (version 2). **Do not rerun `scripts/calibrate.py`**:
@@ -121,6 +127,15 @@ percentile (`plausibility_mode: "ngram"`, the current setting) or the cached LLM
 (`"judge"`, `cvl/judge.py`, one name per call, temperature 0, ratings in `judge_cache.csv`).
 The judge becomes the setting only if it passes the acceptance test against our own ratings
 (`scripts/human_tasks.py analyze --freeze`). `creativity_rate_ngram` is always reported.
+
+**Judge, student, estimate.** The judge returns a probability for each rating 1 to 5 and we use
+the expected value. Judging every sample of every checkpoint would be hundreds of thousands of
+API calls, so a small local model, the student (`student.pt`), is trained to copy the judge.
+The student alone over-rates names by 6 to 13 points, by an amount that changes with training
+step, so it is never reported by itself. `eval_checkpoint.py` has the student score every novel
+name, sends a random 200 to the judge, and uses those 200 to remove the student's error. The
+result is `creativity_rate_judge` with a standard error. Full explanation and measurements:
+`docs/judge_and_student.md`.
 
 | Batch measure | Definition |
 | --- | --- |
@@ -216,11 +231,17 @@ calls, needs `OPENAI_API_KEY`). `make` regenerates the sheets and keys determini
 cvl/data.py        cleaning, splitting, load_split
 cvl/ngram.py       reference character n-gram
 cvl/novelty.py     novelty views: spelling, sound, meaning, splice
-cvl/judge.py       LLM judge with an on-disk cache
+cvl/judge.py       LLM judge: soft ratings, on-disk cache (judge_cache.csv)
+cvl/student.py     the judge's local copy (student.pt)
+cvl/estimate.py    student on all names + judge on a sample -> unbiased plausibility share
+cvl/reference_lm.py  small LSTM fixture for building the scorer; not a project model
 cvl/agreement.py   Krippendorff's alpha, Cohen's kappa
 cvl/scorer.py      score, score_table
 cvl/plots.py       Fig. 1 and Fig. 2 helpers
-scripts/           prepare_data, calibrate, sanity_check, human_tasks, eval_checkpoint
+scripts/           prepare_data, calibrate, sanity_check, human_tasks, eval_checkpoint, make_figures,
+                   judge_pool, train_student, train_reference_lstm
+results/           pool/ (names sent to the judge), student/ (student vs. judge), reference/ (fixture run)
 tests/             unit tests
-docs/              evaluation_plan.md (scorer design), work_split.md (who does what, dates)
+docs/              evaluation_plan.md (scorer design), judge_and_student.md (plausibility pipeline),
+                   work_split.md (who does what, dates)
 ```

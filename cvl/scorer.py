@@ -18,7 +18,7 @@ Novelty, deterministic. `tier` is the first of these that applies:
 Plausibility, for novel names only:
     gate        length min_len..max_len (3..15), otherwise not plausible
     mode "ngram"  percentile under the reference n-gram >= plausibility_threshold
-    mode "judge"  cached LLM judge rating >= judge_cut (cvl/judge.py)
+    mode "judge"  cached LLM judge rating (expected value, 1.0 to 5.0) >= judge_cut (cvl/judge.py)
 The mode is set in scorer_config.json. It is "ngram" until the judge has passed its
 acceptance test against human ratings; the n-gram numbers are always reported too.
 
@@ -76,7 +76,7 @@ class ScorerConfig:
     plausibility_mode: str = "ngram"
     judge_model: str | None = None
     judge_prompt_hash: str | None = None
-    judge_cut: int | None = None
+    judge_cut: float | None = None
 
     @classmethod
     def load(cls, path: Path = CONFIG_PATH) -> "ScorerConfig":
@@ -93,7 +93,7 @@ class Scorer:
                  meaning: MeaningIndex | None = None, meaning_threshold: float | None = None,
                  famous: set[str] | None = None, min_len: int = 3, max_len: int = 15,
                  plausibility_mode: str = "ngram", judge: Judge | None = None,
-                 judge_cut: int | None = None):
+                 judge_cut: float | None = None):
         if plausibility_mode not in ("ngram", "judge"):
             raise ValueError(f"unknown plausibility_mode: {plausibility_mode}")
         if plausibility_mode == "judge" and (judge is None or judge_cut is None):

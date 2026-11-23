@@ -1,7 +1,10 @@
 """Report figures. Each function saves a PNG and returns its path.
 
-Fig. 1  plot_training_curve: validation loss and creativity rate vs. step,
-        with the loss minimum and the creativity peak marked.
+Fig. 1  plot_run: three stacked panels sharing the step axis (no second y-axis):
+        validation loss; creativity rate (judge-based, with its error band, and the
+        3-gram and student-only versions for comparison); where the samples went
+        (novel, respelling, near copy, derived, copy).
+        plot_training_curve is the older single-panel version.
 Fig. 2  plot_plane: checkpoints (or any labeled batches) on the
         novelty vs. plausibility plane.
 """
@@ -111,3 +114,66 @@ def plot_plane(df: pd.DataFrame, out: str | Path, label_col: str = "label",
     fig.savefig(out)
     plt.close(fig)
     return out
+
+
+# Categorical colors, fixed order, validated for colorblind separation on a light surface.
+SERIES = {"blue": "#2a78d6", "orange": "#eb6834", "aqua": "#1baf7a", "yellow": "#eda100", "magenta": "#e87ba4"}
+TIER_PARTS = [("novel_rate", "novel", "blue"), ("respelling_rate", "respelling", "orange"),
+              ("near_copy_rate", "near copy", "aqua"), ("derived_rate", "derived or famous", "yellow"),
+              ("copy_rate", "exact copy", "magenta")]
+
+
+def plot_run(df: pd.DataFrame, out: str | Path, title: str = "") -> Path:
+    """One training run: loss, creativity and novelty tiers against training step.
+
+    df: rows of results/checkpoints.csv for a single run (one row per checkpoint).
+    """
+    d = df.sort_values("step").reset_index(drop=True)
+    x = d["step"].to_numpy(dtype=float)
+    has_judge = "creativity_rate_judge" in d and d["creativity_rate_judge"].notna().all()
+    fig, (a, b, c) = plt.subplots(3, 1, figsize=(6.6, 7.4), sharex=True,
+                                  gridspec_kw={"height_ratios": [1, 1.25, 1.1], "hspace": 0.16})
+    for ax in (a, b, c):
+        ax.set_xscale("log")
+        ax.grid(axis="y", color="#E6E6E6", linewidth=0.6)
+        ax.set_axisbelow(True)
+    best = int(d["val_loss"].idxmin())
+    for ax in (a, b, c):
+        ax.axvline(x[best], color=MUTED, linewidth=0.8, linestyle=(0, (3, 3)))
+
+    a.plot(x, d["val_loss"], color=INK, linewidth=2)
+    a.plot(x[best], d["val_loss"][best], "o", color=INK, markersize=6)
+    a.annotate(f"lowest loss, step {int(x[best]):,}", (x[best], d["val_loss"][best]), textcoords="offset points",
+               xytext=(10, 16), fontsize=9, color=INK)
+    a.set_ylabel("validation loss\n(nats per symbol)")
+    if title:
+        a.set_title(title, loc="left", fontsize=11, color=INK)
+
+    head = d["creativity_rate_judge"] if has_judge else d["creativity_rate"]
+    if has_judge:
+        se = d["creativity_rate_se"].fillna(0)
+        b.fill_between(x, head - 2 * se, head + 2 * se, color=SERIES["blue"], alpha=0.18, linewidth=0)
+        b.plot(x, d["creativity_rate_ngram"], color=SERIES["orange"], linewidth=1.5, label="3-gram plausibility")
+        if "creativity_rate_student" in d:
+            b.plot(x, d["creativity_rate_student"], color=SERIES["aqua"], linewidth=1.5, linestyle=(0, (4, 2)),
+                   label="student alone (uncorrected)")
+    b.plot(x, head, color=SERIES["blue"], linewidth=2,
+           label="judge (student + judged sample, ±2 SE)" if has_judge else "creativity rate")
+    peak = int(head.idxmax())
+    b.plot(x[peak], head[peak], "o", color=SERIES["blue"], markersize=6)
+    b.annotate(f"peak, step {int(x[peak]):,}", (x[peak], head[peak]), textcoords="offset points",
+               xytext=(-10, -34), fontsize=9, color=INK, ha="center")
+    b.set_ylabel("creativity rate")
+    b.set_ylim(0, 1)
+    b.legend(frameon=False, fontsize=8.5, loc="lower left")
+
+    parts = [(d[col] + (d["famous_rate"] if col == "derived_rate" else 0)).to_numpy() for col, _, _ in TIER_PARTS]
+    c.stackplot(x, parts, colors=[SERIES[k] for _, _, k in TIER_PARTS], labels=[n for _, n, _ in TIER_PARTS],
+                edgecolor="white", linewidth=0.8)
+    c.set_ylim(0, 1)
+    c.set_ylabel("share of samples")
+    c.set_xlabel("training step (log scale)")
+    c.legend(frameon=False, fontsize=8.5, loc="center left", bbox_to_anchor=(1.0, 0.5))
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return Path(out)

@@ -255,10 +255,14 @@ def analyze(fill_judge: bool, freeze: bool) -> None:
     if judge.missing(df["name"].tolist()):
         sys.exit("some Task A names have no judge rating; rerun with --fill-judge")
     df["judge"] = [judge.rating(n) for n in df["name"]]
+    from cvl.student import STUDENT_PATH, Student
+    student = Student.load() if STUDENT_PATH.exists() else None
+    if student is not None:                  # the judge's local copy; never trained on these names
+        df["student"] = student.rating(df["name"].tolist())
 
     calib, test = df[df["half"] == "calibration"], df[df["half"] == "test"]
     best = None
-    for cut in (2, 3, 4, 5):       # chosen on the calibration half only
+    for cut in (1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5):       # chosen on the calibration half only
         k = cohen_kappa(list(calib["judge"] >= cut), list(calib["human_plausible"]))
         if best is None or k > best[1] + 1e-12 or (abs(k - best[1]) <= 1e-12 and abs(cut - 3) < abs(best[0] - 3)):
             best = (cut, k)
@@ -269,8 +273,11 @@ def analyze(fill_judge: bool, freeze: bool) -> None:
     acc = sum(p == h for p, h in zip(pred, test["human_plausible"])) / len(test)
     kappa = cohen_kappa(pred, list(test["human_plausible"]))
     passed = judge_rho > ngram_rho and (ra.shape[1] < 2 or judge_rho >= human_pair - 0.10)
-    print(f"  judge cut chosen on calibration half: rating >= {cut} (kappa {best[1]:.3f})")
+    print(f"  judge cut chosen on calibration half: expected rating >= {cut} (kappa {best[1]:.3f})")
     print(f"  test half: Spearman with mean human rating  judge {judge_rho:.3f}   3-gram {ngram_rho:.3f}")
+    student_rho = float(test["student"].corr(test["human"], method="spearman")) if student is not None else None
+    if student_rho is not None:
+        print(f"  test half: same for the student alone       {student_rho:.3f}")
     print(f"  test half: plausible yes/no vs. humans  accuracy {acc:.3f}   Cohen kappa {kappa:.3f}")
     print(f"  acceptance test: {'PASS' if passed else 'FAIL'} "
           "(judge beats the 3-gram and is within 0.10 of rater-to-rater agreement)")
@@ -278,6 +285,7 @@ def analyze(fill_judge: bool, freeze: bool) -> None:
     print(df.groupby("source")[["human", "judge"]].mean().round(2).to_string())
     report["task_A"] = dict(raters=list(ra.columns), alpha_ordinal=alpha_a, human_pair_spearman=human_pair,
                             judge_cut=cut, judge_spearman_test=judge_rho, ngram_spearman_test=ngram_rho,
+                            student_spearman_test=student_rho,
                             accuracy_test=acc, kappa_test=kappa, acceptance=passed)
     df.to_csv(OUT / "analysis_A.csv")
 

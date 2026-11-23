@@ -23,7 +23,8 @@ The report asks which files each of us wrote, so keep ownership as listed.
 | --- | --- | --- |
 | A1 | Scorer v2, rating app and sheets, checkpoint evaluation | done in this PR |
 | A2 | Freeze the scorer: calibrate the judge on our ratings, run the acceptance test, regenerate sanity check and baseline | ratings from all three of us |
-| A3 | Figure script that redraws everything from `results/checkpoints.csv`: loss and creativity vs. step, tier shares vs. step, by size, by architecture | nothing; built on the n-gram rows first |
+| A3 | Figure script that redraws everything from `results/checkpoints.csv`: loss and creativity vs. step, tier shares vs. step | per-run figure done (`scripts/make_figures.py`); by-size and by-architecture figures need the real runs |
+| A3b | Judge with soft ratings, distilled student, corrected estimate, reference LSTM fixture | done, see `docs/judge_and_student.md` |
 | A4 | Follow-up ratings: 60 names from an early, a lowest-loss and an overfit checkpoint, to check the judge transfers to real model output | first checkpoints |
 | A5 | Error analysis: hand-label 150 generated names (copy, respelling, fragment, gibberish, real-world name, good) | generated names |
 

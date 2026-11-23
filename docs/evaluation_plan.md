@@ -84,13 +84,18 @@ Applied only to names that passed novelty.
    0.3% of the training set but were 14% of bigram samples and passed v1 68% of the time.
 2. **LLM judge.** One question per name: *could this be the given name of a character in a
    fantasy role-playing game?* Answer 1 to 5. Fixed rubric, temperature 0, one pinned model
-   snapshot (`gpt-4.1-mini-2025-04-14`), **one name per call**. Output is cached in
+   snapshot (`gpt-4.1-mini-2025-04-14`), **one name per call**. The rating is the expected value
+   of the model's probabilities over the five answers, so it is a number like 3.4. Output is cached in
    `judge_cache.csv` (name, rating, model, prompt hash) and committed, so every later score is a
    table lookup and anyone can reproduce our numbers without an API key.
    Why one name per call: in a pilot on 63 names outside the human study, rating 25 names per
    call changed the rating of 30% of names when their batch-mates changed (always by one point).
    That would let the quality of a checkpoint's other samples leak into each rating, which is
    the exact comparison this project makes. Alone, all 63 names got the same rating twice.
+   To avoid judging every sample of every checkpoint, a small local student model is trained to
+   copy the judge, and each checkpoint's plausibility share is estimated from the student on all
+   names plus the judge on a random 200. The student is never reported alone. See
+   `docs/judge_and_student.md`.
 3. **Plausible** means rating ≥ c. The cut c is chosen on the calibration half of the human
    ratings to best match the human majority, then never moved.
 
@@ -168,6 +173,9 @@ missing from the judge cache are collected and judged in one batch step; then ra
 Recovery methods that need labels (rejection-sampling fine-tuning) read the same cache.
 
 ## 6. Build order
+
+Status on 22 Nov: steps 1 to 4 and 7 are done, plus the student, the estimator and a figure
+script. Step 5 has one of three raters. Step 6 waits on the other two.
 
 | Step | Output | Needs |
 | --- | --- | --- |

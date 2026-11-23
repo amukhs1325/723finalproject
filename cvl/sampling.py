@@ -60,6 +60,12 @@ def load_checkpoint(path: str | Path):
         d = json.loads(path.read_text())
         if d.get("type") == "char_ngram":
             return CharNGram.from_dict(d)
+    if path.suffix == ".pt":
+        import torch
+        d = torch.load(path, map_location="cpu", weights_only=True)
+        if d.get("type") == "reference_lstm":
+            from .reference_lm import ReferenceLSTM
+            return ReferenceLSTM.from_checkpoint(d)
     raise ValueError(f"don't know how to load {path}; add a loader in cvl/sampling.py")
 
 
@@ -68,6 +74,8 @@ def sample(model, n: int, temperature: float = 1.0, top_p: float = 1.0,
     """Draw n names. `model` is a model object or a checkpoint path."""
     if isinstance(model, (str, Path)):
         model = load_checkpoint(model)
+    if hasattr(model, "sample_batch"):     # a model's own batched sampler; it must call adjust()
+        return model.sample_batch(n, temperature=temperature, top_p=top_p, seed=seed, max_len=max_len)
     rng = np.random.default_rng(seed)
     symbols = model.symbols
     eos = symbols.index(EOS)

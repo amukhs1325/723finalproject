@@ -88,17 +88,20 @@ def test_batch_rates_add_up():
 def test_judge_mode_uses_cache_and_only_for_novel_names(tmp_path):
     cache = tmp_path / "judge_cache.csv"
     j = Judge(model="test-model", cache_path=cache)
-    j._ratings.update({"zorvek": 5, "velmira": 2})
-    j._save()
+    j.put("zorvek", [0, 0, 0, 0, 1])           # certain 5
+    j.put("velmira", [0, 0.6, 0.4, 0, 0])      # torn between 2 and 3 -> 2.4
+    j.save()
     j = Judge(model="test-model", cache_path=cache)          # reload from disk
-    assert j.rating("zorvek") == 5 and len(j) == 2
+    assert j.rating("zorvek") == 5.0 and abs(j.rating("velmira") - 2.4) < 1e-6 and len(j) == 2
+    assert j.probs("velmira") == [0.0, 0.6, 0.4, 0.0, 0.0]
     assert Judge(model="other-model", cache_path=cache).rating("zorvek") is None
 
-    s = scorer(plausibility_mode="judge", judge=j, judge_cut=3)
+    s = scorer(plausibility_mode="judge", judge=j, judge_cut=3.0)
     r = s.score(["zorvek", "velmira", "thorin", "khris", "zo"])   # last three never reach the judge
     assert r["creativity_rate"] == 1 / 5
     assert r["plausible_rate_given_novel"] == 1 / 3               # zorvek yes, velmira no, zo gated
-    assert r["mean_judge_rating"] == 3.5
+    assert abs(r["mean_judge_rating"] - 3.7) < 1e-6
+    assert scorer(plausibility_mode="judge", judge=j, judge_cut=2.25).score(["velmira"])["creativity_rate"] == 1.0
     assert s.needs_judging(["zorvek", "thorin", "khris", "zo", "braxomel"]) == ["braxomel"]
     try:
         s.score(["braxomel"])

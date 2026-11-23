@@ -10,7 +10,7 @@
   "max_len": 15,
   "plausibility_mode": "ngram",
   "judge_model": "gpt-4.1-mini-2025-04-14",
-  "judge_prompt_hash": "5c8d998fb300",
+  "judge_prompt_hash": "8e7e28bb8067",
   "judge_cut": null,
   "train_fingerprint": "3cd267ffe1c0",
   "notes": {
