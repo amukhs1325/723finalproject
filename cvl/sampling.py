@@ -66,6 +66,9 @@ def load_checkpoint(path: str | Path):
         if d.get("type") == "reference_lstm":
             from .reference_lm import ReferenceLSTM
             return ReferenceLSTM.from_checkpoint(d)
+        if d.get("type") == "lstm":
+            from models.lstm import CharLSTM
+            return CharLSTM.from_checkpoint(d)
     raise ValueError(f"don't know how to load {path}; add a loader in cvl/sampling.py")
 
 

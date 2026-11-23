@@ -11,9 +11,11 @@ peaks with where validation loss bottoms out.
 is at v2 (novelty views, length gate, cached LLM judge with a distilled local student) and
 **not frozen yet**: it freezes once the three of us have done the 15-minute rating app (see
 Human study below). Design and evidence are in `docs/evaluation_plan.md` and
-`docs/judge_and_student.md`. The data splits did not change, so models can be trained now
-and scored after the freeze. Next: the shared interface and the LSTM and transformer runs.
-Who does what, and by when, is in `docs/work_split.md`.
+`docs/judge_and_student.md`. The LSTM grid is trained and scored: 3 sizes × 3 seeds, 252
+checkpoints in `results/checkpoints.csv`, summarized in `results/summary.md` and drawn in
+`results/figures/grid_lstm.png` (see LSTM runs below). Those numbers use a provisional judge
+cut and get recomputed, at no API cost, when the scorer freezes. Next: the transformer runs,
+the decoding sweep and recovery. Who does what, and by when, is in `docs/work_split.md`.
 
 This repo prepares the fantasy-name data and scores generated names for creativity.
 Pretraining and post-training code plug into two calls:
@@ -69,12 +71,56 @@ Trains a Witten-Bell character bigram on train (`checkpoints/bigram.json`) and r
 decoding sweep on it: temperature 0.5 to 1.5 and top-p 0.5 to 0.95, 3 seeds × 1,000 names
 each. Results in `outputs/baseline/`.
 
+## LSTM runs
+
+```bash
+python training/train_lstm.py --size small medium large --seed 0 1 2   # the grid: 9 runs
+python scripts/eval_checkpoint.py checkpoints/lstm_medium_s0/ --fill-judge   # score one run
+python scripts/make_figures.py        # a figure per run, plus results/figures/grid_lstm.png
+python scripts/summarize_runs.py      # results/summary.md and summary.csv
+```
+
+`models/lstm.py` is one LSTM layer over 32-dimensional character embeddings. Only the hidden
+width changes with size: 60, 138 and 296 units give 25,321, 99,967 and 400,325 parameters.
+Every run uses the same recipe (Adam at 2e-3, batches of 128 names, no dropout or weight
+decay) and saves the same 28 log-spaced checkpoints from step 50 to step 40,000, about 410
+passes over the training names. That is far past the lowest validation loss on purpose, so
+each run has undertrained, lowest-loss and overfit checkpoints. With all nine running at once
+on a laptop CPU, a small run took 6 minutes, a medium one 13, and a large one close to 3 hours.
+Weights are written to `checkpoints/lstm_{size}_s{seed}/` and are not committed. The scored
+table, the samples and the figures are.
+
+`scripts/summarize_runs.py` compares creativity at each run's lowest-loss checkpoint with
+creativity at the step the *other* seeds of that size say is most creative. Choosing the step
+from other seeds matters: the highest of 28 noisy numbers overstates the peak, so a run never
+picks its own.
+
+What the nine runs show so far (provisional cut, scorer not frozen):
+
+| | small | medium | large |
+| --- | --- | --- | --- |
+| lowest validation loss (mean of 3 seeds) | 2.366 | 2.363 | 2.365 |
+| reached at step (median) | 1,601 | 976 | 464 |
+| creativity rate at that checkpoint | 0.719 | 0.700 | 0.693 |
+| held-out gap to the most creative step | +0.007 ± 0.013 | −0.012 ± 0.013 | −0.009 ± 0.013 |
+| exact copies at lowest loss → at step 40,000 | 3% → 11% | 4% → 66% | 4% → 92% |
+
+* All three sizes reach the same validation loss; a bigger model gets there sooner and
+  overfits harder afterwards.
+* Creativity climbs while the model is undertrained (names stop being gibberish), sits on a
+  plateau around the loss minimum, and falls once the model starts reciting training names.
+* The lowest-loss checkpoint is on the plateau for every size. The held-out gap is within one
+  standard error of zero, so for these LSTMs sampled at temperature 1 the lowest-loss
+  checkpoint is as creative as any other, to within about a point.
+* Past the minimum the two measures part ways in size, not direction: the large model's
+  creativity rate drops from 0.69 to 0.05 while almost every sample becomes an exact copy.
+
 ## Setup
 
 ```bash
 pip install -r requirements.txt   # numpy, pandas, matplotlib, sentence-transformers; rapidfuzz optional
 python scripts/prepare_data.py    # data/processed/{train,val,test}.txt + meta.json
-python -m pytest tests            # 29 tests
+python -m pytest tests            # 35 tests
 ```
 
 `scorer_config.json` is already committed (version 2). **Do not rerun `scripts/calibrate.py`**:
@@ -238,9 +284,12 @@ cvl/reference_lm.py  small LSTM fixture for building the scorer; not a project m
 cvl/agreement.py   Krippendorff's alpha, Cohen's kappa
 cvl/scorer.py      score, score_table
 cvl/plots.py       Fig. 1 and Fig. 2 helpers
+models/lstm.py     the project's LSTM in three sizes (25k, 100k, 400k parameters)
+training/train_lstm.py   trains one run or the whole grid, log-spaced checkpoints
 scripts/           prepare_data, calibrate, sanity_check, human_tasks, eval_checkpoint, make_figures,
-                   judge_pool, train_student, train_reference_lstm
-results/           pool/ (names sent to the judge), student/ (student vs. judge), reference/ (fixture run)
+                   summarize_runs, judge_pool, train_student, train_reference_lstm
+results/           checkpoints.csv (one row per scored checkpoint), summary.md, figures/, samples/,
+                   pool/ (names sent to the judge), student/ (student vs. judge), reference/ (fixture run)
 tests/             unit tests
 docs/              evaluation_plan.md (scorer design), judge_and_student.md (plausibility pipeline),
                    work_split.md (who does what, dates)

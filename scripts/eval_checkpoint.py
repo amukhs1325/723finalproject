@@ -99,7 +99,7 @@ def main() -> None:
         out = sample_dir / run / f"{ck.stem}_t{args.temperature:g}_p{args.top_p:g}_s{args.seed}.txt"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text("\n".join(names) + "\n", encoding="utf-8")
-        batches.append(dict(ck=ck, run=run, names=names, val_loss=val_loss,
+        batches.append(dict(ck=ck, run=run, names=names, val_loss=val_loss, params=meta.get("params"),
                             step=meta.get("step", step_of(ck))))
         print(f"sampled {rel(ck)}", flush=True)
 
@@ -144,7 +144,7 @@ def main() -> None:
             "judged_names": sh["judged"], "judge_method": sh["method"], "judge_cut_used": cut,
         })
         rows.append({"run": b["run"], "checkpoint": rel(b["ck"]), "step": b["step"],
-                     "val_loss": b["val_loss"], "temperature": args.temperature,
+                     "val_loss": b["val_loss"], "params": b["params"], "temperature": args.temperature,
                      "top_p": args.top_p, "seed": args.seed, **r})
     new = pd.DataFrame(rows)
     if args.out.exists():

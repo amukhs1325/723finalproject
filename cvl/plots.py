@@ -177,3 +177,66 @@ def plot_run(df: pd.DataFrame, out: str | Path, title: str = "") -> Path:
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     return Path(out)
+
+
+SIZE_ORDER = ["small", "medium", "large"]
+GRID_ROWS = [("val_loss", "validation loss\n(nats per symbol)", INK),
+             ("creativity", "creativity rate", SERIES["blue"]),
+             ("copy_rate", "exact copies\n(share of samples)", SERIES["magenta"])]
+
+
+def split_run(run: str) -> tuple[str, str, int] | None:
+    """'lstm_medium_s0' -> ('lstm', 'medium', 0). None for runs not named that way."""
+    parts = run.rsplit("_", 2)
+    if len(parts) != 3 or not parts[2].startswith("s") or not parts[2][1:].isdigit():
+        return None
+    return parts[0], parts[1], int(parts[2][1:])
+
+
+def plot_grid(df: pd.DataFrame, out: str | Path, arch: str = "lstm") -> Path:
+    """One architecture, all sizes and seeds: a column per size, a row per measure.
+
+    Thin lines are single seeds, the heavy line is their mean. The dashed line marks the
+    step where the mean validation loss is lowest. Rows share a y-axis across sizes.
+    df: rows of results/checkpoints.csv (temperature 1, top-p 1).
+    """
+    d = df.copy()
+    keys = d["run"].map(split_run)
+    d = d[keys.notna()]
+    d[["arch", "size", "run_seed"]] = pd.DataFrame(keys[keys.notna()].tolist(), index=d.index)
+    d = d[d["arch"] == arch]
+    judged = d["creativity_rate_judge"].notna().all()
+    d["creativity"] = d["creativity_rate_judge"] if judged else d["creativity_rate"]
+    sizes = [s for s in SIZE_ORDER if s in set(d["size"])] + sorted(set(d["size"]) - set(SIZE_ORDER))
+    fig, axes = plt.subplots(len(GRID_ROWS), len(sizes), figsize=(3.1 * len(sizes) + 0.6, 6.6),
+                             sharex=True, sharey="row", squeeze=False,
+                             gridspec_kw={"hspace": 0.14, "wspace": 0.08})
+    for j, size in enumerate(sizes):
+        g = d[d["size"] == size]
+        mean = g.groupby("step")[[c for c, _, _ in GRID_ROWS]].mean()
+        best = mean["val_loss"].idxmin()
+        for i, (col, label, color) in enumerate(GRID_ROWS):
+            ax = axes[i, j]
+            ax.set_xscale("log")
+            ax.grid(axis="y", color="#E6E6E6", linewidth=0.6)
+            ax.set_axisbelow(True)
+            ax.axvline(best, color=MUTED, linewidth=0.8, linestyle=(0, (3, 3)))
+            for _, run in g.groupby("run_seed"):
+                run = run.sort_values("step")
+                ax.plot(run["step"], run[col], color=color, linewidth=0.9, alpha=0.4)
+            ax.plot(mean.index, mean[col], color=color, linewidth=2)
+            if i == 0:
+                params = g["params"].iloc[0] if "params" in g and g["params"].notna().any() else None
+                head = f"{size}" + (f" · {int(params):,} parameters" if params else "")
+                ax.set_title(head, loc="left", fontsize=10, color=INK)
+                ax.annotate(f"lowest loss\nstep {int(best):,}", (best, 1), xycoords=("data", "axes fraction"),
+                            textcoords="offset points", xytext=(6, -4), fontsize=8, color=INK, va="top")
+            if j == 0:
+                ax.set_ylabel(label)
+            if col != "val_loss":
+                ax.set_ylim(0, 1)
+            if i == len(GRID_ROWS) - 1:
+                ax.set_xlabel("training step (log scale)")
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return Path(out)
