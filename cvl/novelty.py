@@ -1,4 +1,13 @@
-"""Nearest-training-name similarity, used for novelty.
+"""Novelty views: how close is a generated name to anything in the training set?
+
+Four deterministic nearest-neighbor queries (see docs/evaluation_plan.md):
+    copy      exact match                                   (scorer)
+    spelling  NearestName: normalized Levenshtein similarity
+    sound     SoundIndex: same respelling key as a training name
+    meaning   MeaningIndex: cosine in a fixed sentence-embedding space
+plus SpliceIndex, a descriptor (training prefix + training suffix), not a filter.
+
+Spelling view:
 
 similarity(a, b) = 1 - levenshtein(a, b) / max(len(a), len(b))   (0 to 1)
 novelty(name)    = 1 - max similarity to any training name
@@ -7,6 +16,10 @@ Uses RapidFuzz when installed (fast); otherwise a NumPy implementation that give
 identical numbers, about 10 seconds per 1,000 names.
 """
 from __future__ import annotations
+
+import hashlib
+import re
+from pathlib import Path
 
 import numpy as np
 
@@ -87,3 +100,116 @@ class NearestName:
 
     def novelty(self, query: str) -> float:
         return 1.0 - self.nearest(query)[0]
+
+
+# ---- sound view ---------------------------------------------------------
+# Respelling key: fold spellings that sound the same. Applied in order.
+# Double Metaphone was tested and rejected: it drops vowels and matches 76% of
+# real held-out names to some training name.
+SOUND_RULES = [
+    (r"['\-]", ""),
+    (r"ph", "f"), (r"ck", "k"), (r"kh", "k"), (r"chr", "kr"),
+    (r"qu", "kw"), (r"q", "k"), (r"x", "ks"),
+    (r"c(?=[eiy])", "s"), (r"c", "k"), (r"y", "i"),
+    (r"([^aeiou])\1+", r"\1"),      # doubled consonants anywhere: jonn -> jon
+    (r"([aeiou])\1+$", r"\1"),      # doubled vowel at the end:    davee -> dave
+    (r"(?<=[^aeiou])e$", ""),        # final silent e:              dave -> dav
+    (r"(?<=[aeiou])h$", ""),         # final h after a vowel:       sarah -> sara
+]
+_SOUND_RULES = [(re.compile(p), r) for p, r in SOUND_RULES]
+
+
+def sound_key(name: str) -> str:
+    for pat, rep in _SOUND_RULES:
+        name = pat.sub(rep, name)
+    return name
+
+
+class SoundIndex:
+    """Training names by respelling key."""
+
+    def __init__(self, train_names: list[str]):
+        self.by_key: dict[str, str] = {}
+        for name in train_names:
+            self.by_key.setdefault(sound_key(name), name)
+
+    def match(self, query: str) -> str | None:
+        """The training name that is a respelling of `query`, if any."""
+        key = sound_key(query)
+        return self.by_key.get(key) if key else None
+
+
+# ---- splice descriptor ----------------------------------------------------
+class SpliceIndex:
+    """Is a name a training prefix joined to a training suffix (each >= k letters)?
+
+    44% of real held-out names are, so this describes a name; it does not make it a copy.
+    """
+
+    def __init__(self, train_names: list[str], k: int = 3):
+        self.k = k
+        self.prefixes: set[str] = set()
+        self.suffixes: set[str] = set()
+        for t in train_names:
+            for i in range(k, len(t) + 1):
+                self.prefixes.add(t[:i])
+                self.suffixes.add(t[-i:])
+
+    def is_splice(self, name: str) -> bool:
+        k = self.k
+        return any(name[:i] in self.prefixes and name[i:] in self.suffixes
+                   for i in range(k, len(name) - k + 1))
+
+
+# ---- meaning view -----------------------------------------------------------
+MEANING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+MEANING_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+
+
+class MeaningIndex:
+    """Cosine similarity to the nearest training name in a fixed embedding space.
+
+    Used only at the high end (see the threshold in scorer_config.json), where it
+    finds names built on the same root: eldrath -> eldra, jonasz -> jonas. For
+    nonsense strings the cosine carries no information, so it is never used as a
+    general distance. Runs on CPU with a pinned model revision.
+    """
+
+    def __init__(self, train_names: list[str], cache_dir: Path | None = None,
+                 model: str = MEANING_MODEL, revision: str = MEANING_REVISION):
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as e:  # pragma: no cover - depends on environment
+            raise ImportError("the meaning view needs sentence-transformers: "
+                              "pip install sentence-transformers") from e
+        self.train = list(dict.fromkeys(train_names))
+        self.model_name, self.revision = model, revision
+        self._model = SentenceTransformer(model, revision=revision, device="cpu")
+        self._cache: dict[str, tuple[float, str]] = {}
+        tag = hashlib.sha256(("\n".join(self.train) + model + revision).encode()).hexdigest()[:12]
+        path = Path(cache_dir) / f"train_emb_{tag}.npy" if cache_dir else None
+        if path is not None and path.exists():
+            self.train_emb = np.load(path)
+        else:
+            self.train_emb = self._encode(self.train)
+            if path is not None:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                np.save(path, self.train_emb)
+
+    def _encode(self, names: list[str]) -> np.ndarray:
+        return self._model.encode(names, batch_size=256, normalize_embeddings=True,
+                                  show_progress_bar=False).astype(np.float32)
+
+    def nearest_many(self, names: list[str]) -> list[tuple[float, str]]:
+        """(cosine to the nearest training name, that name) for each query."""
+        todo = [n for n in dict.fromkeys(names) if n and n not in self._cache]
+        for start in range(0, len(todo), 2048):
+            chunk = todo[start:start + 2048]
+            sims = self._encode(chunk) @ self.train_emb.T
+            best = sims.argmax(1)
+            for i, n in enumerate(chunk):
+                self._cache[n] = (float(sims[i, best[i]]), self.train[int(best[i])])
+        return [self._cache.get(n, (0.0, "")) for n in names]
+
+    def nearest(self, name: str) -> tuple[float, str]:
+        return self.nearest_many([name])[0]

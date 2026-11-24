@@ -6,3 +6,10 @@ outputs/human_check/rater_*.csv
 # until everyone has rated, or the ratings are not blind.
 outputs/human_check/key.csv
 outputs/human_check/analysis.csv
+
+# Scorer v2
+data/processed/.cache/
+outputs/human_study/key_*.csv
+*.tmp
+# model weights stay out of git (the bigram JSON is small and tracked)
+checkpoints/*/
