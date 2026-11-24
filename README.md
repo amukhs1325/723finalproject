@@ -123,11 +123,12 @@ fixed before looking, and reports all of them in `results/sensitivity.md`
 
 * **A stricter judge cut (3.5 or 4) or the 3-gram instead of the judge** does not change the
   picture: the lowest-loss checkpoint stays on the plateau.
-* **Asking for more originality does.** Requiring the name to be far from every training name,
-  not a splice of two training names, or plausible to the judge while atypical under the
-  3-gram moves the best checkpoint *before* the loss minimum for all three sizes. The
-  held-out gap is positive in 8 of those 9 cells, up to +0.050 ± 0.012 (large, no splices),
-  which is 4% to 14% more creative names than the lowest-loss checkpoint gives.
+* **Asking for more originality does, for two of the three ways we asked.** Requiring the name
+  not to be a splice of two training names, or to be plausible to the judge while atypical
+  under the 3-gram, moves the best checkpoint *before* the loss minimum for all three sizes,
+  with a positive held-out gap in all six cells (up to +0.050 ± 0.012, large, no splices).
+  Requiring the name to be far from every training name gave +0.042 ± 0.012 for the large
+  model at the one bar tried here, but that did not survive the check below.
 * **The score is not loss in disguise.** At the same validation loss, a slightly overfit
   checkpoint is more creative than an undertrained one (0.68 against 0.48 for the small model
   at 0.2 nats above its minimum; `results/figures/loss_vs_creativity_lstm.png`).
@@ -137,8 +138,25 @@ fixed before looking, and reports all of them in `results/sensitivity.md`
 
 These definitions were tried after seeing the base result, so they are a robustness check, not
 a new headline. The clean test is the transformer grid, which has not been trained: the
-prediction that originality-weighted creativity peaks before the loss minimum is written
-down here first.
+prediction that creativity which excludes splices, or asks for atypical names, peaks before
+the loss minimum is written down here first.
+
+### Is distance from the training names the missing piece?
+
+The base score uses spelling distance only as a low pass/fail bar (1/6 of the letters, which
+93% of real held-out names clear). `python scripts/originality_dial.py` raises that bar in
+seven steps, and also tries a graded score in which each creative name counts by its distance
+(`results/originality.md`, `results/figures/originality_dial_lstm.png`). No API calls.
+
+* **Raising the bar does not open a steady gap.** Small: no gain at any bar. Medium: nothing
+  until +0.021 ± 0.010 at 2/5. Large: +0.029, +0.034, 0.000, +0.042, +0.002 at 1/5, 1/4, 2/7,
+  1/3, 2/5. The bar that half of real held-out names clear (2/7) gives 0.00 for every size.
+* **The graded score shows no gap at all** (−0.003, −0.007, +0.003, each ± 0.004).
+* **The best step does drift earlier** as the bar rises, but the curves are flat enough near
+  the top that stopping there gains nothing we can measure with three seeds.
+
+So spelling distance alone is not what separates the most creative checkpoint from the
+lowest-loss one. The +0.042 at 1/3 above was one bar out of seven.
 
 ## Setup
 
@@ -312,7 +330,7 @@ cvl/plots.py       Fig. 1 and Fig. 2 helpers
 models/lstm.py     the project's LSTM in three sizes (25k, 100k, 400k parameters)
 training/train_lstm.py   trains one run or the whole grid, log-spaced checkpoints
 scripts/           prepare_data, calibrate, sanity_check, human_tasks, eval_checkpoint, make_figures,
-                   summarize_runs, sensitivity, judge_pool, train_student, train_reference_lstm
+                   summarize_runs, sensitivity, originality_dial, judge_pool, train_student, train_reference_lstm
 results/           checkpoints.csv (one row per scored checkpoint), summary.md, figures/, samples/,
                    pool/ (names sent to the judge), student/ (student vs. judge), reference/ (fixture run)
 tests/             unit tests

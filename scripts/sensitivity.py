@@ -63,7 +63,8 @@ LABELS = {"base": "base (judge ≥ 3)", "strict_3.5": "judge ≥ 3.5", "strict_4
 
 def domain_rate(keep: np.ndarray, q: np.ndarray, y_s: np.ndarray, idx_s: np.ndarray, n_samples: int) -> tuple[float, float]:
     """Creative names per sample for one definition: student on every kept name, corrected
-    by the judged sample. keep, q: over all novel names. y_s: judge says plausible, on the sample."""
+    by the judged sample. keep, q: over all novel names. y_s: judge says plausible, on the sample.
+    keep may be 0/1 or a weight per name (scripts/originality_dial.py counts a name by its distance)."""
     n, m = len(keep), len(idx_s)
     z = q * keep
     if m == n:
@@ -74,11 +75,14 @@ def domain_rate(keep: np.ndarray, q: np.ndarray, y_s: np.ndarray, idx_s: np.ndar
     return float(max(0.0, count) / n_samples), float(se / n_samples)
 
 
-def main() -> None:
-    scorer, student = default_scorer(), Student.load()
+def lstm_table() -> pd.DataFrame:
     table = pd.read_csv(RESULTS / "checkpoints.csv")
-    table = table[(table["temperature"] == 1.0) & (table["top_p"] == 1.0) & table["run"].map(split_run).notna()]
-    rows, per_name = [], []
+    return table[(table["temperature"] == 1.0) & (table["top_p"] == 1.0) & table["run"].map(split_run).notna()]
+
+
+def judged_checkpoints(table: pd.DataFrame, scorer, student):
+    """For each checkpoint: its row, the number of samples, the novel names (one row each), where the
+    200 judged names sit in that table, their judge ratings, and the student's probabilities for all."""
     for r in table.itertuples():
         path = RESULTS / "samples" / r.run / f"step{int(r.step)}_t1_p1_s0.txt"
         names = path.read_text(encoding="utf-8").split("\n")[:-1]
@@ -88,21 +92,28 @@ def main() -> None:
         sample = t["name"].tolist() if len(t) <= M else pick_sample(t["name"].tolist(), M)
         idx = np.array([pos[x] for x in sample])
         rating = np.array([scorer.judge.rating(x) for x in sample], dtype=float)
-        probs = student.predict(t["name"].tolist())
-        row = {"run": r.run, "step": int(r.step), "val_loss": r.val_loss, "params": r.params, "n": len(names),
+        yield r, len(names), t, idx, rating, student.predict(t["name"].tolist())
+        print(f"{r.run} step {int(r.step)}", flush=True)
+
+
+def main() -> None:
+    scorer, student = default_scorer(), Student.load()
+    table = lstm_table()
+    rows, per_name = [], []
+    for r, n, t, idx, rating, probs in judged_checkpoints(table, scorer, student):
+        row = {"run": r.run, "step": int(r.step), "val_loss": r.val_loss, "params": r.params, "n": n,
                "temperature": 1.0, "top_p": 1.0, "copy_rate": r.copy_rate, "novel_rate": r.novel_rate}
         for key, (cut, rule) in JUDGED.items():
             row[key], row[key + "_se"] = domain_rate(rule(t), student_p_plausible(probs, cut), (rating >= cut).astype(float),
-                                                     idx, len(names))
+                                                     idx, n)
         for key, col in FROM_TABLE.items():
             p = getattr(r, col)
-            row[key], row[key + "_se"] = p, math.sqrt(p * (1 - p) / len(names))
+            row[key], row[key + "_se"] = p, math.sqrt(p * (1 - p) / n)
         rows.append(row)
         s = t.iloc[idx]
-        per_name.append(pd.DataFrame({"name": sample, "judge": rating, "ngram_pct": s["plausibility"].to_numpy(),
+        per_name.append(pd.DataFrame({"name": s["name"].to_numpy(), "judge": rating, "ngram_pct": s["plausibility"].to_numpy(),
                                       "novelty": s["novelty"].to_numpy(), "length": s["name"].str.len().to_numpy(),
                                       "splice": s["splice"].to_numpy()}))
-        print(f"{r.run} step {int(r.step)}", flush=True)
     d = pd.DataFrame(rows)
     d.to_csv(RESULTS / "sensitivity.csv", index=False)
     assert np.allclose(d["base"], table["creativity_rate_judge"].to_numpy(), atol=1e-9), "base must reproduce the headline"
