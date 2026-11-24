@@ -170,3 +170,12 @@ def test_import_app_result(tmp_path, monkeypatch):
         raise AssertionError("expected an incomplete result to be refused")
     except SystemExit as e:
         assert "incomplete" in str(e)
+
+
+def test_a_fresh_rating_and_a_reloaded_one_are_the_same_number(tmp_path):
+    from cvl.judge import Judge
+    j = Judge(cache_path=tmp_path / "c.csv")
+    j.put("marlow", [0.000004, 0.1000049, 0.7999951, 0.09, 0.01])     # lands a hair from a round value
+    fresh = j.rating("marlow")
+    j.save()
+    assert Judge(cache_path=tmp_path / "c.csv").rating("marlow") == fresh

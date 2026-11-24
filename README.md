@@ -101,8 +101,8 @@ What the nine runs show so far (provisional cut, scorer not frozen):
 | --- | --- | --- | --- |
 | lowest validation loss (mean of 3 seeds) | 2.366 | 2.363 | 2.365 |
 | reached at step (median) | 1,601 | 976 | 464 |
-| creativity rate at that checkpoint | 0.719 | 0.700 | 0.693 |
-| held-out gap to the most creative step | +0.007 ± 0.013 | −0.012 ± 0.013 | −0.009 ± 0.013 |
+| creativity rate at that checkpoint | 0.719 | 0.700 | 0.692 |
+| held-out gap to the most creative step | +0.005 ± 0.013 | −0.012 ± 0.013 | −0.008 ± 0.013 |
 | exact copies at lowest loss → at step 40,000 | 3% → 11% | 4% → 66% | 4% → 92% |
 
 * All three sizes reach the same validation loss; a bigger model gets there sooner and
@@ -115,12 +115,37 @@ What the nine runs show so far (provisional cut, scorer not frozen):
 * Past the minimum the two measures part ways in size, not direction: the large model's
   creativity rate drops from 0.69 to 0.05 while almost every sample becomes an exact copy.
 
+### Does that depend on how creativity is defined?
+
+`python scripts/sensitivity.py` rescores the same samples under eight definitions that were
+fixed before looking, and reports all of them in `results/sensitivity.md`
+(`results/figures/sensitivity_lstm.png`). It makes no API calls.
+
+* **A stricter judge cut (3.5 or 4) or the 3-gram instead of the judge** does not change the
+  picture: the lowest-loss checkpoint stays on the plateau.
+* **Asking for more originality does.** Requiring the name to be far from every training name,
+  not a splice of two training names, or plausible to the judge while atypical under the
+  3-gram moves the best checkpoint *before* the loss minimum for all three sizes. The
+  held-out gap is positive in 8 of those 9 cells, up to +0.050 ± 0.012 (large, no splices),
+  which is 4% to 14% more creative names than the lowest-loss checkpoint gives.
+* **The score is not loss in disguise.** At the same validation loss, a slightly overfit
+  checkpoint is more creative than an undertrained one (0.68 against 0.48 for the small model
+  at 0.2 nats above its minimum; `results/figures/loss_vs_creativity_lstm.png`).
+* **The judge is not the 3-gram again.** Over 38,355 names their ratings correlate at 0.64 and
+  the two pass/fail rules disagree on one name in five. The judge also prefers names closer
+  to the training set (−0.49), so plausibility and novelty pull against each other name by name.
+
+These definitions were tried after seeing the base result, so they are a robustness check, not
+a new headline. The clean test is the transformer grid, which has not been trained: the
+prediction that originality-weighted creativity peaks before the loss minimum is written
+down here first.
+
 ## Setup
 
 ```bash
 pip install -r requirements.txt   # numpy, pandas, matplotlib, sentence-transformers; rapidfuzz optional
 python scripts/prepare_data.py    # data/processed/{train,val,test}.txt + meta.json
-python -m pytest tests            # 35 tests
+python -m pytest tests            # 36 tests
 ```
 
 `scorer_config.json` is already committed (version 2). **Do not rerun `scripts/calibrate.py`**:
@@ -287,7 +312,7 @@ cvl/plots.py       Fig. 1 and Fig. 2 helpers
 models/lstm.py     the project's LSTM in three sizes (25k, 100k, 400k parameters)
 training/train_lstm.py   trains one run or the whole grid, log-spaced checkpoints
 scripts/           prepare_data, calibrate, sanity_check, human_tasks, eval_checkpoint, make_figures,
-                   summarize_runs, judge_pool, train_student, train_reference_lstm
+                   summarize_runs, sensitivity, judge_pool, train_student, train_reference_lstm
 results/           checkpoints.csv (one row per scored checkpoint), summary.md, figures/, samples/,
                    pool/ (names sent to the judge), student/ (student vs. judge), reference/ (fixture run)
 tests/             unit tests

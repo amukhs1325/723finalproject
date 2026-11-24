@@ -71,6 +71,16 @@ Answer with a single digit from 1 to 5 and nothing else."""
 PROMPT_HASH = hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest()[:12]
 
 
+def on_disk(probs: list[float]) -> list[float]:
+    """Probabilities exactly as the cache file stores them (5 decimals).
+
+    A rating is used the same way whether it was fetched a second ago or read back from
+    judge_cache.csv. Without this, a name rated 2.99996 counts as below a cut of 3 in the
+    run that fetched it and as 3.0000 in every later run.
+    """
+    return [float(f"{p:.5f}") for p in probs]
+
+
 def expected_rating(probs: list[float]) -> float:
     return sum((i + 1) * p for i, p in enumerate(probs))
 
@@ -117,7 +127,7 @@ class Judge:
     def put(self, name: str, probs: list[float]) -> None:
         """Store a rating by hand (tests, or importing ratings made elsewhere)."""
         total = sum(probs)
-        self._probs[name] = [p / total for p in probs]
+        self._probs[name] = on_disk([p / total for p in probs])
 
     # ---- filling the cache (network) ----------------------------------------
     def fill(self, names, verbose: bool = True) -> int:
@@ -128,7 +138,7 @@ class Judge:
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as pool:
                 for name, probs in zip(todo, pool.map(self._judge_one, todo)):
-                    self._probs[name] = probs
+                    self._probs[name] = on_disk(probs)
                     done += 1
                     if done % 250 == 0:
                         self.save()
