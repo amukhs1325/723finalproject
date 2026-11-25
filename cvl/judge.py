@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import http.client
 import json
 import math
 import os
@@ -185,7 +186,8 @@ class Judge:
                     time.sleep(min(30, 2 ** attempt) * (0.5 + random.random()))
                     continue
                 raise RuntimeError(f"judge API error {e.code}: {detail}") from e
-            except (urllib.error.URLError, TimeoutError):
+            except (OSError, http.client.HTTPException):
+                # dropped or reset connections arrive as plain OSError, not URLError
                 if attempt == 6:
                     raise
                 time.sleep(min(30, 2 ** attempt))

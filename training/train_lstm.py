@@ -35,22 +35,33 @@ def save_steps(steps: int = STEPS, k: int = CHECKPOINTS) -> list[int]:
     return sorted({int(round(x)) for x in np.geomspace(50, steps, k)})
 
 
+def make_model(arch: str, size: str):
+    if arch == "lstm":
+        return CharLSTM.of_size(size)
+    if arch == "transformer":
+        from models.transformer import CharTransformer
+        return CharTransformer.of_size(size)
+    raise ValueError(arch)
+
+
 def train_run(size: str, seed: int, steps: int = STEPS, out_root: Path | None = None,
-              train: list[str] | None = None, val: list[str] | None = None, quiet: bool = False) -> Path:
+              train: list[str] | None = None, val: list[str] | None = None, quiet: bool = False,
+              arch: str = "lstm", lr: float = LR) -> Path:
+    """One run. The loop is shared by both architectures (training/train_transformer.py calls it)."""
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     train = load_split("train") if train is None else train
     val = load_split("val") if val is None else val
-    out = (out_root or ROOT / "checkpoints") / f"lstm_{size}_s{seed}"
+    out = (out_root or ROOT / "checkpoints") / f"{arch}_{size}_s{seed}"
     out.mkdir(parents=True, exist_ok=True)
     for old in out.glob("step*.pt"):
         old.unlink()
     save_at = set(save_steps(steps))
 
-    model = CharLSTM.of_size(size)
-    opt = torch.optim.Adam(model.parameters(), lr=LR)
+    model = make_model(arch, size)
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
     if not quiet:
-        print(f"lstm_{size}_s{seed}: {model.n_params():,} parameters", flush=True)
+        print(f"{arch}_{size}_s{seed}: {model.n_params():,} parameters", flush=True)
     rows, t0 = [], time.time()
     for step in range(1, steps + 1):
         model.train()
