@@ -1,6 +1,7 @@
 """Does the finding depend on how creativity is defined? And is the score circular with loss?
 
-    python scripts/sensitivity.py        # reads results/samples/ and judge_cache.csv; no API calls
+    python scripts/sensitivity.py                # the LSTM grid; reads results/samples/ and judge_cache.csv, no API calls
+    python scripts/sensitivity.py transformer    # the same definitions on the transformer grid
 
 Written after the LSTM grid showed creativity flat around the loss minimum. Two worries:
 the score might just be validation loss in disguise, or the definition might be hiding
@@ -27,6 +28,8 @@ each is unbiased and has a standard error.
 
 Outputs: results/sensitivity.csv (per checkpoint), results/sensitivity.md,
 results/figures/sensitivity_lstm.png, results/figures/loss_vs_creativity_lstm.png.
+For another architecture the files are sensitivity_{arch}.csv / .md and the figures end in
+_{arch}.png. The definitions are the same objects either way; nothing is retuned per architecture.
 """
 import math
 import sys
@@ -75,9 +78,14 @@ def domain_rate(keep: np.ndarray, q: np.ndarray, y_s: np.ndarray, idx_s: np.ndar
     return float(max(0.0, count) / n_samples), float(se / n_samples)
 
 
-def lstm_table() -> pd.DataFrame:
+def runs_table(arch: str) -> pd.DataFrame:
     table = pd.read_csv(RESULTS / "checkpoints.csv")
-    return table[(table["temperature"] == 1.0) & (table["top_p"] == 1.0) & table["run"].map(split_run).notna()]
+    keys = table["run"].map(split_run)
+    return table[(table["temperature"] == 1.0) & (table["top_p"] == 1.0) & keys.map(lambda k: bool(k) and k[0] == arch)]
+
+
+def lstm_table() -> pd.DataFrame:
+    return runs_table("lstm")
 
 
 def judged_checkpoints(table: pd.DataFrame, scorer, student):
@@ -96,9 +104,12 @@ def judged_checkpoints(table: pd.DataFrame, scorer, student):
         print(f"{r.run} step {int(r.step)}", flush=True)
 
 
-def main() -> None:
+def main(arch: str = "lstm") -> None:
     scorer, student = default_scorer(), Student.load()
-    table = lstm_table()
+    table = runs_table(arch)
+    if table.empty:
+        sys.exit(f"no {arch} runs in results/checkpoints.csv")
+    tag = "" if arch == "lstm" else f"_{arch}"
     rows, per_name = [], []
     for r, n, t, idx, rating, probs in judged_checkpoints(table, scorer, student):
         row = {"run": r.run, "step": int(r.step), "val_loss": r.val_loss, "params": r.params, "n": n,
@@ -115,13 +126,13 @@ def main() -> None:
                                       "novelty": s["novelty"].to_numpy(), "length": s["name"].str.len().to_numpy(),
                                       "splice": s["splice"].to_numpy()}))
     d = pd.DataFrame(rows)
-    d.to_csv(RESULTS / "sensitivity.csv", index=False)
+    d.to_csv(RESULTS / f"sensitivity{tag}.csv", index=False)
     assert np.allclose(d["base"], table["creativity_rate_judge"].to_numpy(), atol=1e-9), "base must reproduce the headline"
 
     keys = list(JUDGED) + list(FROM_TABLE)
     d[["arch", "size", "run_seed"]] = pd.DataFrame(d["run"].map(split_run).tolist(), index=d.index)
-    md = ["# Does the result depend on the definition of creativity?", "",
-          "Regenerate with `python scripts/sensitivity.py`. The definitions were fixed before the numbers were",
+    md = ["# Does the result depend on the definition of creativity?" + ("" if arch == "lstm" else f" ({arch})"), "",
+          f"Regenerate with `python scripts/sensitivity.py{'' if arch == 'lstm' else ' ' + arch}`. The definitions were fixed before the numbers were",
           "computed and all of them are shown. Judge cut is provisional (3.0) until the scorer freezes.", "",
           "## 1. Eight definitions, same checkpoints", "",
           "Gap = rate at the step the other seeds say is best under that definition, minus the rate at this",
@@ -179,12 +190,12 @@ def main() -> None:
     rho_all = spearmanr(d["val_loss"], d["base"]).statistic
     md += [md_table(pd.DataFrame(same)), "",
            f"Across all {len(d)} checkpoints, Spearman between validation loss and the base creativity rate is {rho_all:.2f}.", ""]
-    (RESULTS / "sensitivity.md").write_text("\n".join(md), encoding="utf-8")
+    (RESULTS / f"sensitivity{tag}.md").write_text("\n".join(md), encoding="utf-8")
     print("\n".join(md))
-    figures(d, keys)
+    figures(d, keys, arch)
 
 
-def figures(d: pd.DataFrame, keys: list[str]) -> None:
+def figures(d: pd.DataFrame, keys: list[str], arch: str = "lstm") -> None:
     sizes = [s for s in SIZE_ORDER if s in set(d["size"])]
     fig, axes = plt.subplots(len(keys), len(sizes), figsize=(3.1 * len(sizes) + 0.8, 1.55 * len(keys) + 0.6),
                              sharex=True, sharey="row", squeeze=False, gridspec_kw={"hspace": 0.2, "wspace": 0.08})
@@ -210,7 +221,7 @@ def figures(d: pd.DataFrame, keys: list[str]) -> None:
                 ax.set_ylabel(LABELS[key], fontsize=8, rotation=0, ha="right", va="center")
             if i == len(keys) - 1:
                 ax.set_xlabel("training step (log scale)")
-    fig.savefig(RESULTS / "figures" / "sensitivity_lstm.png", dpi=150, bbox_inches="tight")
+    fig.savefig(RESULTS / "figures" / f"sensitivity_{arch}.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
 
     fig, axes = plt.subplots(1, len(sizes), figsize=(3.3 * len(sizes) + 0.6, 3.4), sharey=True, squeeze=False,
@@ -234,9 +245,9 @@ def figures(d: pd.DataFrame, keys: list[str]) -> None:
         if j == 0:
             ax.set_ylabel("creativity rate")
             ax.legend(frameon=False, fontsize=8.5, loc="lower left")
-    fig.savefig(RESULTS / "figures" / "loss_vs_creativity_lstm.png", dpi=150, bbox_inches="tight")
+    fig.savefig(RESULTS / "figures" / f"loss_vs_creativity_{arch}.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1] if len(sys.argv) > 1 else "lstm")

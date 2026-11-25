@@ -8,6 +8,12 @@ sweep, the recovery experiment, the follow-up ratings and the error analysis can
 now. The rows below are marked. Still open: the two remaining sets of ratings, the
 transformer grid, and Agastya's next task, which the three of us should agree on.
 
+**Status, 24 November.** Agastya merged the LSTM grid and has done the rating app, so only
+Vraj's ratings are missing before the scorer can freeze. Andre built, trained and scored the
+transformer grid (V1, V2), so both grids are in `results/checkpoints.csv` and V3 and V4 can
+run on either architecture. Still open: Vraj's ratings, V3 to V6, and what Agastya and Vraj
+pick up now that the model code is written.
+
 The idea is that nobody waits on anybody. We agree on a small interface once, then each
 model has its own training script, and the scorer reads whatever checkpoints exist.
 
@@ -29,7 +35,7 @@ The report asks which files each of us wrote, so keep ownership as listed.
 | --- | --- | --- |
 | A1 | Scorer v2, rating app and sheets, checkpoint evaluation | done in this PR |
 | A2 | Freeze the scorer: calibrate the judge on our ratings, run the acceptance test, regenerate sanity check and baseline | ratings from all three of us |
-| A3 | Figure script that redraws everything from `results/checkpoints.csv`: loss and creativity vs. step, tier shares vs. step | per-run and by-size figures done (`scripts/make_figures.py`, `results/figures/grid_lstm.png`), run summary done (`scripts/summarize_runs.py`); by-architecture needs the transformer runs |
+| A3 | Figure script that redraws everything from `results/checkpoints.csv`: loss and creativity vs. step, tier shares vs. step | per-run and by-size figures done (`scripts/make_figures.py`, `results/figures/grid_lstm.png`), run summary done (`scripts/summarize_runs.py`); by-architecture can be drawn now that the transformer runs are in |
 | A3b | Judge with soft ratings, distilled student, corrected estimate, reference LSTM fixture | done, see `docs/judge_and_student.md` |
 | A4 | Follow-up ratings: 60 names from an early, a lowest-loss and an overfit checkpoint, to check the judge transfers to real model output | first checkpoints |
 | A5 | Error analysis: hand-label 150 generated names (copy, respelling, fragment, gibberish, real-world name, good) | generated names |
@@ -47,9 +53,9 @@ The report asks which files each of us wrote, so keep ownership as listed.
 
 | | Task | Needs |
 | --- | --- | --- |
-| V1 | `models/transformer.py` with its own training script, sizes matched to the LSTM parameter counts (25,321 / 99,967 / 400,325). One medium run first. `training/train_lstm.py` is a template: same checkpoint steps, same layout. | nothing |
-| V2 | Full transformer grid: 3 sizes × 3 seeds | V1 |
-| V3 | Generalize the bigram decoding sweep to any checkpoint. Run it on the lowest-loss LSTM and transformer. | LSTM checkpoints exist now (retrain locally with `training/train_lstm.py`, weights are not in git) |
+| V1 | `models/transformer.py` with its own training script, sizes matched to the LSTM parameter counts (25,321 / 99,967 / 400,325). One medium run first. `training/train_lstm.py` is a template: same checkpoint steps, same layout. | **done by Andre, 24 Nov**: 24,989 / 99,029 / 401,249 parameters |
+| V2 | Full transformer grid: 3 sizes × 3 seeds | **done by Andre, 24 Nov**: 9 runs, 252 checkpoints scored in `results/checkpoints.csv` |
+| V3 | Generalize the bigram decoding sweep to any checkpoint. Run it on the lowest-loss LSTM and transformer. | both sets of checkpoints exist now (retrain locally with `training/train_lstm.py` and `training/train_transformer.py`, weights are not in git) |
 | V4 | Rejection-sampling fine-tuning: sample from the lowest-loss checkpoint, keep the names scored creative, fine-tune, compare with the best decoding setting at matched validation loss | written against a toy model, then pointed at real checkpoints |
 | V5 | Stretch: one more recovery method (unlikelihood or DPO) | V4 |
 | V6 | Overleaf and the related-work list. The report needs 10 citations; the proposal has 5. Everyone sends two. | nothing |

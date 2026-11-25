@@ -11,11 +11,12 @@ peaks with where validation loss bottoms out.
 is at v2 (novelty views, length gate, cached LLM judge with a distilled local student) and
 **not frozen yet**: it freezes once the three of us have done the 15-minute rating app (see
 Human study below). Design and evidence are in `docs/evaluation_plan.md` and
-`docs/judge_and_student.md`. The LSTM grid is trained and scored: 3 sizes × 3 seeds, 252
-checkpoints in `results/checkpoints.csv`, summarized in `results/summary.md` and drawn in
-`results/figures/grid_lstm.png` (see LSTM runs below). Those numbers use a provisional judge
-cut and get recomputed, at no API cost, when the scorer freezes. Next: the transformer runs,
-the decoding sweep and recovery. Who does what, and by when, is in `docs/work_split.md`.
+`docs/judge_and_student.md`. Both model grids are trained and scored: LSTM and transformer,
+3 sizes × 3 seeds each, 504 checkpoints in `results/checkpoints.csv`, summarized in
+`results/summary.md` and drawn in `results/figures/grid_lstm.png` and `grid_transformer.png`
+(see LSTM runs and Transformer runs below). Those numbers use a provisional judge cut and get
+recomputed, at no API cost, when the scorer freezes. Next: the decoding sweep and recovery.
+Who does what, and by when, is in `docs/work_split.md`.
 
 This repo prepares the fantasy-name data and scores generated names for creativity.
 Pretraining and post-training code plug into two calls:
@@ -137,9 +138,10 @@ fixed before looking, and reports all of them in `results/sensitivity.md`
   to the training set (−0.49), so plausibility and novelty pull against each other name by name.
 
 These definitions were tried after seeing the base result, so they are a robustness check, not
-a new headline. The clean test is the transformer grid, which has not been trained: the
-prediction that creativity which excludes splices, or asks for atypical names, peaks before
-the loss minimum is written down here first.
+a new headline. The clean test was the transformer grid. The prediction that creativity which
+excludes splices, or asks for atypical names, peaks before the loss minimum was written down
+here before that grid was trained (commit 489e0e2, narrowed to these two definitions in
+84ae1be). It held for one transformer size out of three: see Transformer runs below.
 
 ### Is distance from the training names the missing piece?
 
@@ -158,12 +160,76 @@ seven steps, and also tries a graded score in which each creative name counts by
 So spelling distance alone is not what separates the most creative checkpoint from the
 lowest-loss one. The +0.042 at 1/3 above was one bar out of seven.
 
+## Transformer runs
+
+```bash
+python training/train_transformer.py --size small medium large --seed 0 1 2   # 9 runs
+python scripts/eval_checkpoint.py checkpoints/transformer_medium_s0/ --fill-judge
+python scripts/make_figures.py              # adds results/figures/grid_transformer.png
+python scripts/summarize_runs.py            # both architectures in results/summary.md
+python scripts/sensitivity.py transformer   # results/sensitivity_transformer.md
+```
+
+`models/transformer.py` is a decoder-only transformer: pre-norm blocks, learned positions,
+a 4× GELU feed-forward layer, causal attention. Sizes are matched to the LSTM's parameter
+counts to within 2%:
+
+| | layers | width | heads | parameters | LSTM of the same size |
+| --- | --- | --- | --- | --- | --- |
+| small | 2 | 30 | 2 | 24,989 | 25,321 |
+| medium | 4 | 44 | 4 | 99,029 | 99,967 |
+| large | 4 | 90 | 6 | 401,249 | 400,325 |
+
+It trains in the LSTM's loop (`train_run` in `training/train_lstm.py`): same batches in the
+same order for a given seed, same 28 checkpoint steps, no dropout or weight decay. The one
+setting chosen separately is the learning rate, 1e-3 against the LSTM's 2e-3. It was picked
+from 4,000-step pilots on validation loss alone, before any transformer sample was scored
+(table in `training/train_transformer.py`). With nine runs at once, one CPU thread each, a
+small run took 20 minutes, a medium one an hour and a large one close to 5 hours.
+
+| | small | medium | large |
+| --- | --- | --- | --- |
+| lowest validation loss (mean of 3 seeds) | 2.397 | 2.394 | 2.397 |
+| reached at step (median) | 2,626 | 762 | 464 |
+| creativity rate at that checkpoint | 0.710 | 0.717 | 0.710 |
+| held-out gap to the most creative step | −0.011 ± 0.013 | +0.010 ± 0.012 | −0.025 ± 0.013 |
+| exact copies at lowest loss → at step 40,000 | 4% → 8% | 4% → 60% | 4% → 88% |
+
+* **Same shape as the LSTM.** Creativity rises, sits on a plateau around the loss minimum and
+  falls as the model starts reciting. No size shows a positive gap beyond one standard error.
+* **Across architectures, lower loss did not mean more creative.** The LSTM reaches a lower
+  validation loss at every size (about 2.365 against 2.396, far more than the spread between
+  seeds), and its creativity rate at the lowest-loss checkpoint is 0.719 / 0.700 /
+  0.692 against the transformer's 0.710 / 0.717 / 0.710. Each of those has a standard error
+  near 0.009, so the two are level.
+
+**The pre-registered prediction mostly failed.** It said that the two originality-demanding
+definitions would peak before the loss minimum. Held-out gaps on the transformer:
+
+| | small | medium | large |
+| --- | --- | --- | --- |
+| not a splice | +0.033 ± 0.013 | −0.024 ± 0.010 | −0.029 ± 0.013 |
+| plausible but atypical | +0.054 ± 0.014 | −0.008 ± 0.010 | −0.014 ± 0.014 |
+| same rows on the LSTM | | | |
+| not a splice | +0.025 ± 0.013 | +0.018 ± 0.013 | +0.050 ± 0.012 |
+| plausible but atypical | +0.032 ± 0.014 | +0.026 ± 0.013 | +0.028 ± 0.013 |
+
+The small transformer agrees with the LSTM. The medium and large ones do not: stopping where
+the other seeds say is best gives the same rate or a lower one than stopping at the lowest
+loss. So the early peak under these two definitions is positive in 8 of 12 cells and is not a
+finding that carries across architectures. The other results do carry over: stricter judge
+cuts and the 3-gram change nothing, and at equal validation loss the overfit side is more
+creative than the undertrained side (0.67 against 0.42 for the small model at 0.2 nats above
+its minimum). "Far from training", which the first wording of the prediction also covered,
+shows no gap either (−0.023, +0.008, −0.024). All eight definitions are in
+`results/sensitivity_transformer.md`.
+
 ## Setup
 
 ```bash
 pip install -r requirements.txt   # numpy, pandas, matplotlib, sentence-transformers; rapidfuzz optional
 python scripts/prepare_data.py    # data/processed/{train,val,test}.txt + meta.json
-python -m pytest tests            # 36 tests
+python -m pytest tests            # 40 tests
 ```
 
 `scorer_config.json` is already committed (version 2). **Do not rerun `scripts/calibrate.py`**:
@@ -328,7 +394,9 @@ cvl/agreement.py   Krippendorff's alpha, Cohen's kappa
 cvl/scorer.py      score, score_table
 cvl/plots.py       Fig. 1 and Fig. 2 helpers
 models/lstm.py     the project's LSTM in three sizes (25k, 100k, 400k parameters)
-training/train_lstm.py   trains one run or the whole grid, log-spaced checkpoints
+models/transformer.py   decoder-only transformer in the same three sizes
+training/train_lstm.py   trains one run or the whole grid, log-spaced checkpoints; its train_run
+                   loop is shared by training/train_transformer.py
 scripts/           prepare_data, calibrate, sanity_check, human_tasks, eval_checkpoint, make_figures,
                    summarize_runs, sensitivity, originality_dial, judge_pool, train_student, train_reference_lstm
 results/           checkpoints.csv (one row per scored checkpoint), summary.md, figures/, samples/,
